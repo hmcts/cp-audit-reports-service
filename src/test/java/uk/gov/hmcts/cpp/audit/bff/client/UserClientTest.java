@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import uk.gov.hmcts.cpp.audit.bff.model.User;
 
@@ -244,7 +245,8 @@ class UserClientTest {
         mockServer.expect(requestTo(org.hamcrest.Matchers.containsString("userIds=user-1")))
             .andRespond(withServerError());
 
-        assertThrows(Exception.class, () ->
+        assertThrows(
+            RestClientException.class, () ->
             userClient.getUsers("user-1", "corr-error")
         );
 
@@ -256,7 +258,7 @@ class UserClientTest {
         mockServer.expect(requestTo(org.hamcrest.Matchers.containsString("emails=test@example.com")))
             .andRespond(withServerError());
 
-        assertThrows(Exception.class, () ->
+        assertThrows(RestClientException.class, () ->
             userClient.getUsersByEmail("test@example.com", "corr-error")
         );
 
@@ -268,7 +270,7 @@ class UserClientTest {
         mockServer.expect(requestTo(org.hamcrest.Matchers.containsString("userIds=invalid")))
             .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
-        assertThrows(Exception.class, () ->
+        assertThrows(RestClientException.class, () ->
             userClient.getUsers("invalid", "corr-404")
         );
 
@@ -280,7 +282,7 @@ class UserClientTest {
         mockServer.expect(requestTo(org.hamcrest.Matchers.containsString("emails=invalid@example.com")))
             .andRespond(withStatus(HttpStatus.BAD_REQUEST));
 
-        assertThrows(Exception.class, () ->
+        assertThrows(RestClientException.class, () ->
             userClient.getUsersByEmail("invalid@example.com", "corr-400")
         );
 
