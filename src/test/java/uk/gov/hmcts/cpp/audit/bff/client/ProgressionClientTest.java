@@ -4,15 +4,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import uk.gov.hmcts.cpp.audit.bff.model.MaterialCase;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
 class ProgressionClientTest {
 
@@ -224,6 +226,203 @@ class ProgressionClientTest {
         List<MaterialCase> actualCases = progressionClient.getMaterialCases("empty-id", "corr-id");
 
         assertThat(actualCases).isEmpty();
+        mockServer.verify();
+    }
+
+
+    @Test
+    void shouldThrowRestClientExceptionWhenApiCallFails() {
+        String materialIds = "m1,m2";
+        String correlationId = "corr-error-id";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withServerError());
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionOnNetworkError() {
+        String materialIds = "m1";
+        String correlationId = "corr-network-error";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withServerError());
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionWith503ServiceUnavailable() {
+        String materialIds = "m1,m2,m3";
+        String correlationId = "corr-service-unavailable";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withServerError());
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionWith400BadRequest() {
+        String materialIds = "invalid-format";
+        String correlationId = "corr-bad-request";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withStatus(org.springframework.http.HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionWith401Unauthorized() {
+        String materialIds = "m1";
+        String correlationId = "corr-unauthorized";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withStatus(org.springframework.http.HttpStatus.UNAUTHORIZED));
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionWith403Forbidden() {
+        String materialIds = "m1";
+        String correlationId = "corr-forbidden";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withStatus(org.springframework.http.HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionWith404NotFound() {
+        String materialIds = "non-existent-material";
+        String correlationId = "corr-not-found";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withStatus(org.springframework.http.HttpStatus.NOT_FOUND));
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionWith502BadGateway() {
+        String materialIds = "m1,m2";
+        String correlationId = "corr-bad-gateway";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withStatus(org.springframework.http.HttpStatus.BAD_GATEWAY));
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionWhenResponseIsInvalidJson() {
+        String materialIds = "m1";
+        String correlationId = "corr-invalid-json";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withSuccess("invalid json {", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionForConnectionTimeout() {
+        String materialIds = "m1";
+        String correlationId = "corr-timeout";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withServerError());
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldPropagateRestClientExceptionWithCorrectMaterialIds() {
+        String materialIds = "specific-material-id-12345";
+        String correlationId = "corr-specific-error";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withServerError());
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionAndPreserveStackTrace() {
+        String materialIds = "m1";
+        String correlationId = "corr-stack-trace";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withServerError());
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class)
+            .hasStackTraceContaining("RestTemplate");
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionWithMultipleMaterialIds() {
+        String materialIds = "m1,m2,m3,m4,m5";
+        String correlationId = "corr-multiple-ids-error";
+
+        mockServer.expect(requestTo(org.hamcrest.Matchers
+                                        .containsString("materialIds=" + materialIds)))
+            .andRespond(withServerError());
+
+        assertThatThrownBy(() -> progressionClient.getMaterialCases(materialIds, correlationId))
+            .isInstanceOf(RestClientException.class);
+
         mockServer.verify();
     }
 }

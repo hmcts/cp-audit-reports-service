@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
 import uk.gov.hmcts.cpp.audit.bff.model.ErrorResponse;
 
 class GlobalExceptionHandlerTest {
@@ -213,5 +214,214 @@ class GlobalExceptionHandlerTest {
             .handleHttpClientErrorException(exception, mockRequest);
 
         assertEquals("N/A", response.getBody().correlationId());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionNotFound() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "Resource not found"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/materials");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-404-001");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals(404, response.getBody().status());
+        assertEquals("Not Found", response.getBody().error());
+        assertEquals("Resource not found", response.getBody().message());
+        assertEquals("/api/materials", response.getBody().path());
+        assertEquals("resp-404-001", response.getBody().correlationId());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionBadRequest() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Invalid request format"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/validate");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-400-002");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(400, response.getBody().status());
+        assertEquals("Bad Request", response.getBody().error());
+        assertEquals("Invalid request format", response.getBody().message());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionUnauthorized() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.UNAUTHORIZED,
+            "Authentication required"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/protected");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-401-003");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals(401, response.getBody().status());
+        assertEquals("Unauthorized", response.getBody().error());
+        assertEquals("Authentication required", response.getBody().message());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionForbidden() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "Access forbidden"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/admin");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-403-004");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertEquals(403, response.getBody().status());
+        assertEquals("Forbidden", response.getBody().error());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionConflict() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "Resource already exists"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/create");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-409-005");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals(409, response.getBody().status());
+        assertEquals("Conflict", response.getBody().error());
+        assertEquals("Resource already exists", response.getBody().message());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionInternalServerError() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "Server encountered an error"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/process");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-500-006");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals(500, response.getBody().status());
+        assertEquals("Internal Server Error", response.getBody().error());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionWithoutCorrelationId() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "No Material Cases found"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/materials");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn(null);
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals(404, response.getBody().status());
+        assertEquals("N/A", response.getBody().correlationId());
+        assertEquals("/api/materials", response.getBody().path());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionNoReason() {
+        ResponseStatusException exception = new ResponseStatusException(HttpStatus.BAD_REQUEST);
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/test");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-no-reason");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(400, response.getBody().status());
+        assertEquals("Bad Request", response.getBody().error());
+        assertNotNull(response.getBody());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionGatewayTimeout() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.GATEWAY_TIMEOUT,
+            "Gateway timeout occurred"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/external");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-504-007");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT, response.getStatusCode());
+        assertEquals(504, response.getBody().status());
+        assertEquals("Gateway Timeout", response.getBody().error());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionServiceUnavailable() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Service is temporarily unavailable"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/service");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("resp-503-008");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertEquals(503, response.getBody().status());
+        assertEquals("Service Unavailable", response.getBody().error());
+        assertEquals("Service is temporarily unavailable", response.getBody().message());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionResponseBodyNotNull() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "No users found for the provided email addresses"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/user/email");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("user-not-found");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertNotNull(response);
+        assertNotNull(response.getBody());
+        assertNotNull(response.getBody().timestamp());
+        assertEquals("/user/email", response.getBody().path());
+    }
+
+    @Test
+    void testHandleResponseStatusExceptionTimestampPresent() {
+        ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "Resource not found"
+        );
+        when(mockRequest.getDescription(false)).thenReturn("uri=/api/test");
+        when(mockRequest.getHeader("CPPCLIENTCORRELATIONID")).thenReturn("timestamp-test");
+
+        ResponseEntity<ErrorResponse> response = globalExceptionHandler
+            .handleResponseStatusException(exception, mockRequest);
+
+        assertNotNull(response.getBody().timestamp());
     }
 }
