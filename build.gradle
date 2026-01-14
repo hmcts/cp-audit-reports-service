@@ -150,6 +150,7 @@ dependencies {
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-aop'
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-json'
   implementation group: 'org.springdoc', name: 'springdoc-openapi-starter-webmvc-ui', version: '3.0.0'
+  implementation 'org.springframework.boot:spring-boot-starter-security'
   // Azure Fabric Manager client library
   implementation("com.azure.resourcemanager:azure-resourcemanager-fabric:1.0.0-beta.1")
 

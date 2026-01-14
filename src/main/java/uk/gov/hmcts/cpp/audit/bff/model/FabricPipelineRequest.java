@@ -1,27 +1,44 @@
-
 package uk.gov.hmcts.cpp.audit.bff.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.Getter;
+import lombok.NonNull;
+import lombok.Setter;
 
-@Data
+import java.time.LocalDate;
+import java.util.Map;
+
+/**
+ * Request model for executing a pipeline in Microsoft Fabric.
+ */
+@Getter
+@Setter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class FabricPipelineRequest {
 
-    @JsonProperty("requestinguser")
+    @NonNull
     private String requestingUser;
 
-    @JsonProperty("userid")
+    @NonNull
     private String userId;
 
-    @JsonProperty("from_dateutc")
-    private String fromDateUtc;
+    @NonNull
+    private LocalDate fromDateUtc;
 
-    @JsonProperty("to_dateutc")
-    private String toDateUtc;
+    @NonNull
+    private LocalDate toDateUtc;
+
+    /**
+     * Converts the request parameters to a map format required by Fabric API.
+     *
+     * @return map of parameter names to values
+     */
+    public Map<String, Object> getParametersAsMap() {
+        return Map.of(
+            "requestinguser", requestingUser,
+            "userid", userId,
+            "from_dateutc", fromDateUtc.toString(),
+            "to_dateutc", toDateUtc.toString()
+        );
+    }
 }

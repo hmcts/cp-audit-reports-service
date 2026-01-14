@@ -6,27 +6,24 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import uk.gov.hmcts.cpp.audit.bff.client.FabricClient;
-import com.azure.resourcemanager.fabric.models.FabricCapacity;
+import uk.gov.hmcts.cpp.audit.bff.model.FabricPipelineRequest;
+import uk.gov.hmcts.cpp.audit.bff.model.FabricPipelineResponse;
 
-import java.util.List;
-import java.util.Optional;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class FabricServiceTest {
 
-    private static final String CAPACITY_NAME = "test-capacity";
-    private static final String CAPACITY_NAME_2 = "test-capacity-2";
+    private FabricService fabricService;
 
     @Mock
     private FabricClient fabricClient;
-
-    private FabricService fabricService;
 
     @BeforeEach
     void setUp() {
@@ -34,83 +31,80 @@ class FabricServiceTest {
     }
 
     @Test
-    void shouldListAllCapacitiesSuccessfully() {
-        List<String> expectedCapacities = List.of(CAPACITY_NAME, CAPACITY_NAME_2);
-        when(fabricClient.listCapacities()).thenReturn(expectedCapacities);
+    void shouldSuccessfullyTriggerAuditPipeline() {
+        String correlationId = "test-correlation-id";
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-123")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
 
-        List<String> capacities = fabricService.listCapacities();
+        FabricPipelineResponse expectedResponse = FabricPipelineResponse.builder()
+            .jobId("job-123")
+            .status("Queued")
+            .createdTimeUtc("2026-01-14T10:00:00Z")
+            .rootActivityId("activity-789")
+            .build();
 
-        assertThat(capacities).hasSize(2);
-        assertThat(capacities).isEqualTo(expectedCapacities);
-        verify(fabricClient).listCapacities();
+        when(fabricClient.runOnDemandPipeline(any(FabricPipelineRequest.class), eq(correlationId)))
+            .thenReturn(expectedResponse);
+
+        FabricPipelineResponse response = fabricService.triggerAuditPipeline(request, correlationId);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getJobId()).isEqualTo("job-123");
+        assertThat(response.getStatus()).isEqualTo("Queued");
+        verify(fabricClient).runOnDemandPipeline(request, correlationId);
     }
 
     @Test
-    void shouldReturnEmptyListWhenNoCapacitiesExist() {
+    void shouldPassRequestAndCorrelationIdToClient() {
+        String correlationId = "another-correlation-id";
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("audit@example.com")
+            .userId("user-456")
+            .fromDateUtc(LocalDate.of(2026, 1, 5))
+            .toDateUtc(LocalDate.of(2026, 1, 20))
+            .build();
 
-        when(fabricClient.listCapacities()).thenReturn(List.of());
+        FabricPipelineResponse expectedResponse = FabricPipelineResponse.builder()
+            .jobId("job-456")
+            .status("Queued")
+            .build();
 
-        List<String> capacities = fabricService.listCapacities();
+        when(fabricClient.runOnDemandPipeline(request, correlationId))
+            .thenReturn(expectedResponse);
 
+        fabricService.triggerAuditPipeline(request, correlationId);
 
-        assertThat(capacities).isEmpty();
-        verify(fabricClient).listCapacities();
+        verify(fabricClient).runOnDemandPipeline(request, correlationId);
     }
 
     @Test
-    void shouldGetCapacityByNameSuccessfully() {
+    void shouldReturnResponseFromClient() {
+        String correlationId = "test-id";
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("user@example.com")
+            .userId("user-789")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 10))
+            .build();
 
-        FabricCapacity mockCapacity = mock(FabricCapacity.class);
-        when(mockCapacity.name()).thenReturn(CAPACITY_NAME);
-        when(fabricClient.getCapacity(CAPACITY_NAME)).thenReturn(Optional.of(mockCapacity));
+        FabricPipelineResponse expectedResponse = FabricPipelineResponse.builder()
+            .jobId("job-789")
+            .status("Queued")
+            .createdTimeUtc("2026-01-14T13:00:00Z")
+            .rootActivityId("activity-999")
+            .build();
 
-        Optional<FabricCapacity> capacity = fabricService.getCapacity(CAPACITY_NAME);
+        when(fabricClient.runOnDemandPipeline(request, correlationId))
+            .thenReturn(expectedResponse);
 
-        assertThat(capacity).isPresent();
-        assertThat(capacity.get().name()).isEqualTo(CAPACITY_NAME);
-        verify(fabricClient).getCapacity(CAPACITY_NAME);
-    }
+        FabricPipelineResponse response = fabricService.triggerAuditPipeline(request, correlationId);
 
-    @Test
-    void shouldReturnEmptyOptionalWhenCapacityNotFound() {
-
-        when(fabricClient.getCapacity(anyString())).thenReturn(Optional.empty());
-
-        Optional<FabricCapacity> capacity = fabricService.getCapacity("non-existent");
-
-        assertThat(capacity).isEmpty();
-        verify(fabricClient).getCapacity("non-existent");
-    }
-
-    @Test
-    void shouldDeleteCapacitySuccessfully() {
-
-        fabricService.deleteCapacity(CAPACITY_NAME);
-
-        verify(fabricClient).deleteCapacity(CAPACITY_NAME);
-    }
-
-    @Test
-    void shouldRetrieveSubscriptionInfo() {
-
-        String subscriptionId = "test-subscription-id";
-        when(fabricClient.getSubscriptionId()).thenReturn(subscriptionId);
-
-        String result = fabricService.getSubscriptionId();
-
-        assertThat(result).isEqualTo(subscriptionId);
-        verify(fabricClient).getSubscriptionId();
-    }
-
-    @Test
-    void shouldRetrieveResourceGroupInfo() {
-
-        String resourceGroupName = "test-resource-group";
-        when(fabricClient.getResourceGroupName()).thenReturn(resourceGroupName);
-
-        String result = fabricService.getResourceGroupName();
-
-        assertThat(result).isEqualTo(resourceGroupName);
-        verify(fabricClient).getResourceGroupName();
+        assertThat(response).isEqualTo(expectedResponse);
+        assertThat(response.getJobId()).isEqualTo("job-789");
+        assertThat(response.getRootActivityId()).isEqualTo("activity-999");
     }
 }

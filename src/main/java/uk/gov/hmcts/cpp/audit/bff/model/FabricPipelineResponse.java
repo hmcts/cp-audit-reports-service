@@ -3,24 +3,29 @@ package uk.gov.hmcts.cpp.audit.bff.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
-@Builder
+/**
+ * Response model for Fabric pipeline execution.
+ */
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class FabricPipelineResponse {
 
-    @JsonProperty("runId")
-    private String runId;
+    @JsonProperty("id")
+    private String jobId;
 
     @JsonProperty("status")
     private String status;
 
-    @JsonProperty("pipelineName")
-    private String pipelineName;
+    @JsonProperty("createdTimeUtc")
+    private String createdTimeUtc;
 
-    @JsonProperty("executionTime")
-    private Long executionTime;
+    @JsonProperty("rootActivityId")
+    private String rootActivityId;
 }

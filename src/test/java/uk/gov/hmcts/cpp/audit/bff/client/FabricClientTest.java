@@ -1,169 +1,421 @@
 package uk.gov.hmcts.cpp.audit.bff.client;
 
-import com.azure.core.http.rest.PagedIterable;
-import com.azure.resourcemanager.fabric.FabricManager;
-import com.azure.resourcemanager.fabric.models.FabricCapacities;
-import com.azure.resourcemanager.fabric.models.FabricCapacity;
+import com.azure.identity.DefaultAzureCredential;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import uk.gov.hmcts.cpp.audit.bff.model.FabricPipelineRequest;
 import uk.gov.hmcts.cpp.audit.bff.model.FabricPipelineResponse;
 
-import java.util.List;
-import java.util.Optional;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("deprecation")
 class FabricClientTest {
 
-    private static final String SUBSCRIPTION_ID = "test-subscription-id";
-    private static final String RESOURCE_GROUP_NAME = "test-resource-group";
-    private static final String CAPACITY_NAME = "test-capacity";
-    private static final String FABRIC_BASE_URL = "https://api.fabric.microsoft.com/v1";
-    private static final String WORKSPACE_ID = "workspace-123";
-    private static final String PIPELINE_ID = "pipeline-456";
-    private static final String PIPELINE_NAME = "Param Test";
-
-    @Mock
-    private FabricManager fabricManager;
-
-    @Mock
+    private FabricClient fabricClient;
+    private MockRestServiceServer mockServer;
     private RestTemplate restTemplate;
 
-    private FabricClient fabricClient;
-    private FabricClient fabricClientWithPipeline;
+    @Mock
+    private DefaultAzureCredential azureCredential;
 
     @BeforeEach
     void setUp() {
-        fabricClient = new FabricClient(fabricManager, SUBSCRIPTION_ID, RESOURCE_GROUP_NAME);
-        fabricClientWithPipeline = new FabricClient(fabricManager, SUBSCRIPTION_ID, RESOURCE_GROUP_NAME,
-                                   restTemplate, FABRIC_BASE_URL, WORKSPACE_ID, PIPELINE_ID, PIPELINE_NAME);
-    }
-
-
-    @Test
-    void shouldGetCapacityByNameSuccessfully() {
-        FabricCapacities fabricCapacities = mock(FabricCapacities.class);
-        FabricCapacity mockCapacity = mock(FabricCapacity.class);
-
-        when(fabricManager.fabricCapacities()).thenReturn(fabricCapacities);
-        when(fabricCapacities.getByResourceGroup(RESOURCE_GROUP_NAME, CAPACITY_NAME))
-            .thenReturn(mockCapacity);
-        when(mockCapacity.name()).thenReturn(CAPACITY_NAME);
-
-        Optional<FabricCapacity> capacity = fabricClient.getCapacity(CAPACITY_NAME);
-
-        assertThat(capacity).isPresent();
-        assertThat(capacity.get().name()).isEqualTo(CAPACITY_NAME);
+        restTemplate = new RestTemplate();
+        mockServer = MockRestServiceServer.createServer(restTemplate);
+        fabricClient = new FabricClient(
+            restTemplate,
+            azureCredential,
+            "https://api.fabric.microsoft.com/v1",
+            "workspace-123",
+            "pipeline-456",
+            "Param Test"
+        );
     }
 
     @Test
-    void shouldReturnEmptyOptionalWhenCapacityNotFound() {
-        FabricCapacities fabricCapacities = mock(FabricCapacities.class);
+    void shouldSuccessfullyTriggerPipelineExecution() {
+        String correlationId = "test-correlation-id";
+        String responseJson = """
+            {
+              "id": "job-123",
+              "status": "Queued",
+              "createdTimeUtc": "2026-01-14T10:00:00Z",
+              "rootActivityId": "activity-789"
+            }
+            """;
 
-        when(fabricManager.fabricCapacities()).thenReturn(fabricCapacities);
-        when(fabricCapacities.getByResourceGroup(RESOURCE_GROUP_NAME, "non-existent"))
-            .thenThrow(new RuntimeException("Capacity not found"));
+        mockServer.expect(requestTo("https://api.fabric.microsoft.com/v1/workspaces/workspace-123/items/pipeline-456/jobs/instances?jobType=Pipeline"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(jsonPath("$.parameters.requestinguser").value("test@example.com"))
+            .andExpect(jsonPath("$.parameters.userid").value("user-123"))
+            .andExpect(jsonPath("$.parameters.from_dateutc").value("2026-01-01"))
+            .andExpect(jsonPath("$.parameters.to_dateutc").value("2026-01-31"))
+            .andRespond(withStatus(HttpStatus.ACCEPTED)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(responseJson));
 
-        Optional<FabricCapacity> capacity = fabricClient.getCapacity("non-existent");
-
-        assertThat(capacity).isEmpty();
-    }
-
-    @Test
-    void shouldDeleteCapacitySuccessfully() {
-        FabricCapacities fabricCapacities = mock(FabricCapacities.class);
-
-        when(fabricManager.fabricCapacities()).thenReturn(fabricCapacities);
-
-        fabricClient.deleteCapacity(CAPACITY_NAME);
-
-        verify(fabricCapacities).deleteByResourceGroup(RESOURCE_GROUP_NAME, CAPACITY_NAME);
-    }
-
-    @Test
-    void shouldThrowUnsupportedOperationForCreateCapacity() {
-        assertThatThrownBy(() ->
-                               fabricClient.createCapacity("new-capacity", "eastus", "F1")
-        )
-            .isInstanceOf(UnsupportedOperationException.class)
-            .hasMessageContaining("Capacity creation is not yet supported");
-    }
-
-    @Test
-    void shouldReturnSubscriptionId() {
-        String subscriptionId = fabricClient.getSubscriptionId();
-
-        assertThat(subscriptionId).isEqualTo(SUBSCRIPTION_ID);
-    }
-
-    @Test
-    void shouldReturnResourceGroupName() {
-        String resourceGroupName = fabricClient.getResourceGroupName();
-
-        assertThat(resourceGroupName).isEqualTo(RESOURCE_GROUP_NAME);
-    }
-
-    @Test
-    void shouldRunPipelineSuccessfully() {
         FabricPipelineRequest request = FabricPipelineRequest.builder()
-            .requestingUser("user@example.com")
+            .requestingUser("test@example.com")
             .userId("user-123")
-            .fromDateUtc("2024-01-01")
-            .toDateUtc("2024-12-31")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
             .build();
 
-        when(restTemplate.postForEntity(anyString(), any(HttpEntity.class), eq(String.class)))
-            .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED).body("{}"));
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
 
-        ResponseEntity<FabricPipelineResponse> response = fabricClientWithPipeline.runPipeline(request, "corr-123");
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getStatus()).isEqualTo("Queued");
-        assertThat(response.getBody().getPipelineName()).isEqualTo(PIPELINE_NAME);
-
-        verify(restTemplate).postForEntity(anyString(), any(HttpEntity.class), eq(String.class));
+        assertThat(response).isNotNull();
+        assertThat(response.getJobId()).isEqualTo("job-123");
+        assertThat(response.getStatus()).isEqualTo("Queued");
+        assertThat(response.getCreatedTimeUtc()).isEqualTo("2026-01-14T10:00:00Z");
+        assertThat(response.getRootActivityId()).isEqualTo("activity-789");
+        mockServer.verify();
     }
 
     @Test
-    void shouldThrowExceptionWhenRunPipelineWithoutConfiguration() {
+    void shouldReturnResponseWith202AcceptedStatus() {
+        String correlationId = "test-correlation-id";
+        String responseJson = """
+            {
+              "id": "job-456",
+              "status": "Queued",
+              "createdTimeUtc": "2026-01-14T11:00:00Z",
+              "rootActivityId": "activity-999"
+            }
+            """;
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.ACCEPTED)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(responseJson));
+
         FabricPipelineRequest request = FabricPipelineRequest.builder()
-            .requestingUser("user@example.com")
-            .userId("user-123")
-            .fromDateUtc("2024-01-01")
-            .toDateUtc("2024-12-31")
+            .requestingUser("audit@example.com")
+            .userId("user-456")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
             .build();
 
-        assertThatThrownBy(() -> fabricClient.runPipeline(request, "corr-123"))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Pipeline execution is not configured");
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getJobId()).isEqualTo("job-456");
+        mockServer.verify();
     }
 
-    /**
-     * Helper method to create a mock PagedIterable from a list.
-     */
-    @SuppressWarnings("unchecked")
-    private PagedIterable<FabricCapacity> createMockPagedIterable(List<FabricCapacity> items) {
-        PagedIterable<FabricCapacity> pagedIterable = mock(PagedIterable.class);
-        when(pagedIterable.stream()).thenReturn(items.stream());
-        when(pagedIterable.iterator()).thenReturn(items.iterator());
-        return pagedIterable;
+    @Test
+    void shouldThrowRestClientExceptionOnServerError() {
+        String correlationId = "test-correlation-id";
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-123")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        assertThatThrownBy(() -> fabricClient.runOnDemandPipeline(request, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldThrowRestClientExceptionOnUnauthorized() {
+        String correlationId = "test-correlation-id";
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-123")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        assertThatThrownBy(() -> fabricClient.runOnDemandPipeline(request, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldIncludeParametersInRequestBody() {
+        String correlationId = "test-correlation-id";
+        String responseJson = """
+            {
+              "id": "job-789",
+              "status": "Queued",
+              "createdTimeUtc": "2026-01-14T12:00:00Z",
+              "rootActivityId": "activity-111"
+            }
+            """;
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(jsonPath("$.parameters['requestinguser']").value("requestuser@example.com"))
+            .andExpect(jsonPath("$.parameters['userid']").value("user-789"))
+            .andExpect(jsonPath("$.parameters['from_dateutc']").value("2026-01-05"))
+            .andExpect(jsonPath("$.parameters['to_dateutc']").value("2026-01-20"))
+            .andRespond(withStatus(HttpStatus.ACCEPTED)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(responseJson));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("requestuser@example.com")
+            .userId("user-789")
+            .fromDateUtc(LocalDate.of(2026, 1, 5))
+            .toDateUtc(LocalDate.of(2026, 1, 20))
+            .build();
+
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
+
+        assertThat(response).isNotNull();
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldReturnResponseWithUnexpectedStatusCode() {
+        String correlationId = "test-correlation-id";
+        String responseJson = """
+            {
+              "id": "job-200",
+              "status": "Queued",
+              "createdTimeUtc": "2026-01-14T14:00:00Z",
+              "rootActivityId": "activity-200"
+            }
+            """;
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.OK)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(responseJson));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-200")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getJobId()).isEqualTo("job-200");
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldHandleAcceptedStatusWithNullResponseBody() {
+        String correlationId = "test-correlation-id";
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.ACCEPTED)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(""));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-300")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
+
+        assertThat(response).isNull();
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldHandleUnexpectedStatusWithNullResponseBody() {
+        String correlationId = "test-correlation-id";
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.CREATED)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(""));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-400")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
+
+        assertThat(response).isNull();
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldLogSuccessfullyQueuedMessageWhenAcceptedWithValidBody() {
+        String correlationId = "test-correlation-id";
+        String responseJson = """
+            {
+              "id": "job-success-123",
+              "status": "Queued",
+              "createdTimeUtc": "2026-01-14T15:00:00Z",
+              "rootActivityId": "activity-success"
+            }
+            """;
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.ACCEPTED)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(responseJson));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-success")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
+
+        // Verify that response body is not null - exercises ternary:
+        // response.getBody() != null ? response.getBody().getJobId() : "unknown"
+        assertThat(response).isNotNull();
+        assertThat(response.getJobId()).isEqualTo("job-success-123");
+        assertThat(response.getJobId()).isNotEqualTo("unknown");
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldLogUnknownWhenAcceptedWithNullJobId() {
+        String correlationId = "test-correlation-id";
+        String responseJson = """
+            {
+              "status": "Queued",
+              "createdTimeUtc": "2026-01-14T16:00:00Z",
+              "rootActivityId": "activity-no-id"
+            }
+            """;
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.ACCEPTED)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(responseJson));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-no-id")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
+
+        // Response is not null but jobId will be null
+        // Covers ternary operator path where jobId is null
+        assertThat(response).isNotNull();
+        assertThat(response.getJobId()).isNull();
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldLogUnexpectedStatusWithValidBody() {
+        String correlationId = "test-correlation-id";
+        String responseJson = """
+            {
+              "id": "job-created-200",
+              "status": "Processing",
+              "createdTimeUtc": "2026-01-14T17:00:00Z",
+              "rootActivityId": "activity-201"
+            }
+            """;
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.OK)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(responseJson));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-created")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        FabricPipelineResponse response = fabricClient.runOnDemandPipeline(request, correlationId);
+
+        // Exercises else branch logging with valid body
+        // Ternary: response.getBody() != null ? response.getBody().getJobId() : "unknown"
+        assertThat(response).isNotNull();
+        assertThat(response.getJobId()).isEqualTo("job-created-200");
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldHandleForbiddenStatus() {
+        String correlationId = "test-correlation-id";
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-123")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        assertThatThrownBy(() -> fabricClient.runOnDemandPipeline(request, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
+    }
+
+    @Test
+    void shouldHandleBadRequestStatus() {
+        String correlationId = "test-correlation-id";
+
+        mockServer.expect(requestTo(containsString("/workspaces/workspace-123/items/pipeline-456/jobs/instances")))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        FabricPipelineRequest request = FabricPipelineRequest.builder()
+            .requestingUser("test@example.com")
+            .userId("user-123")
+            .fromDateUtc(LocalDate.of(2026, 1, 1))
+            .toDateUtc(LocalDate.of(2026, 1, 31))
+            .build();
+
+        assertThatThrownBy(() -> fabricClient.runOnDemandPipeline(request, correlationId))
+            .isInstanceOf(RestClientException.class);
+
+        mockServer.verify();
     }
 }
