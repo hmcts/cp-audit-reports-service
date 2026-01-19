@@ -50,6 +50,7 @@ configurations {
 
 ext {
   lombokVersion = "1.18.38"
+  jacksonVersion = "2.17.0"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -149,6 +150,20 @@ dependencies {
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-aop'
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-json'
   implementation group: 'org.springdoc', name: 'springdoc-openapi-starter-webmvc-ui', version: '3.0.0'
+  implementation 'org.springframework.boot:spring-boot-starter-security'
+  // Azure Fabric Manager client library
+  implementation("com.azure.resourcemanager:azure-resourcemanager-fabric:1.0.0-beta.1")
+
+  // Azure Identity for authentication
+  implementation 'com.azure:azure-identity:1.11.4'
+  implementation 'com.azure:azure-core:1.45.1'
+  implementation 'com.azure:azure-storage-blob:12.24.1'
+
+  // Jackson - Explicit versions for consistency
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
+  implementation group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-xml', version: jacksonVersion
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: jacksonVersion
 
   // Lombok
   compileOnly "org.projectlombok:lombok:${lombokVersion}"

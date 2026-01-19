@@ -42,5 +42,12 @@ spring:
     name: Audit Bff Application
 
 azure:
+  fabric:
+    subscription-id: ${AZURE_SUBSCRIPTION_ID:your-subscription-id}
+    resource-group-name: ${AZURE_RESOURCE_GROUP_NAME:your-resource-group-name}
+    fabric-base-url: ${AZURE_FABRIC_BASE_URL:https://api.fabric.microsoft.com/v1}
+    workspace-id: ${AZURE_FABRIC_WORKSPACE_ID:}
+    pipeline-id: ${AZURE_FABRIC_PIPELINE_ID:}
+    pipeline-name: ${AZURE_FABRIC_PIPELINE_NAME:Param Test}
   application-insights:
     instrumentation-key: ${rpe.AppInsightsInstrumentationKey:00000000-0000-0000-0000-000000000000}
