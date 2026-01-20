@@ -7,8 +7,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,16 +23,9 @@ import java.util.List;
 
 import static uk.gov.hmcts.cpp.audit.bff.constants.HeaderConstants.HEADER_CORRELATION_ID;
 
+@Slf4j
 @RestController
-public class UserController {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(UserController.class);
-
-    private final UserService userService;
-
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
+public record UserController(UserService userService) {
 
     @Operation(summary = "Get Users by Emails", description = "Retrieves Users associated with "
         + "the provided email addresses.")
@@ -46,17 +38,21 @@ public class UserController {
     @GetMapping("/user/email")
     public ResponseEntity<List<User>> getUsers(
         @Parameter(description = "Email addresses of the users (comma separated)", required = true)
-        @RequestParam("emails") String emails,
+        @RequestParam("emails") List<String> emails,
         @Parameter(description = "Correlation ID for tracking the request", required = true)
-        @RequestHeader(HEADER_CORRELATION_ID) String correlationId) {
-        LOGGER.info("Fetching users for emails: {} with correlationId: {}", emails, correlationId);
-        List<User> users = userService.getUsersByEmails(emails, correlationId);
+        @RequestHeader(HEADER_CORRELATION_ID) String correlationId
+    ) {
+        log.info("Fetching users for emails: {} with correlationId: {}", emails, correlationId);
+
+        final var users = userService.getUsersByEmails(emails, correlationId);
+
         if (users.isEmpty()) {
-            LOGGER.warn("No users found for emails: {} with correlationId: {}", emails, correlationId);
+            log.warn("No users found for emails: {} with correlationId: {}", emails, correlationId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,
                                               "No users found for the provided email addresses");
         }
-        LOGGER.debug("Successfully retrieved {} users for emails: {}", users.size(), emails);
+
+        log.debug("Successfully retrieved {} users for emails: {}", users.size(), emails);
         return ResponseEntity.ok(users);
     }
 
@@ -71,17 +67,21 @@ public class UserController {
     @GetMapping("/user/id")
     public ResponseEntity<List<User>> getEmail(
         @Parameter(description = "User IDs of the users (comma separated)", required = true)
-        @RequestParam("userIds") String userIds,
+        @RequestParam("userIds") List<String> userIds,
         @Parameter(description = "Correlation ID for tracking the request", required = true)
-        @RequestHeader(HEADER_CORRELATION_ID) String correlationId) {
-        LOGGER.info("Fetching users for IDs: {} with correlationId: {}", userIds, correlationId);
-        List<User> users = userService.getEmailByUserId(userIds, correlationId);
+        @RequestHeader(HEADER_CORRELATION_ID) String correlationId
+    ) {
+        log.info("Fetching users for IDs: {} with correlationId: {}", userIds, correlationId);
+
+        final var users = userService.getEmailByUserId(userIds, correlationId);
+
         if (users.isEmpty()) {
-            LOGGER.warn("No users found for IDs: {} with correlationId: {}", userIds, correlationId);
+            log.warn("No users found for IDs: {} with correlationId: {}", userIds, correlationId);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,
                                               "No users found for the provided User IDs");
         }
-        LOGGER.debug("Successfully retrieved {} users for IDs: {}", users.size(), userIds);
+
+        log.debug("Successfully retrieved {} users for IDs: {}", users.size(), userIds);
         return ResponseEntity.ok(users);
     }
 }

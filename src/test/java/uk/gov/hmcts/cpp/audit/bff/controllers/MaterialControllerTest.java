@@ -11,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 import uk.gov.hmcts.cpp.audit.bff.model.MaterialCase;
 import uk.gov.hmcts.cpp.audit.bff.service.ProgressionService;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,7 +35,7 @@ class MaterialControllerTest {
 
     @Test
     void shouldReturnMaterialCasesWhenMaterialIdsFound() {
-        String materialIds = "m1,m2";
+        final var materialIds = Arrays.asList("m1,m2".split(","));
         String correlationId = "corr-id";
         List<MaterialCase> materialCases = List.of(
             new MaterialCase("m1", "cd1", "c1", "u1"),
@@ -53,7 +54,7 @@ class MaterialControllerTest {
 
     @Test
     void shouldReturnSingleMaterialCaseWhenMaterialIdFound() {
-        String materialIds = "m1";
+        final var materialIds = List.of("m1");
         String correlationId = "corr-id";
         List<MaterialCase> materialCases = List.of(new MaterialCase("m1", "cd1", "c1", "u1"));
 
@@ -69,7 +70,7 @@ class MaterialControllerTest {
 
     @Test
     void shouldThrowNotFoundExceptionWhenMaterialIdsNotFound() {
-        String materialIds = "missing1,missing2";
+        final var materialIds = Arrays.asList("missing1,missing2".split(","));
         String correlationId = "corr-id";
 
         when(progressionService.getMaterialCase(materialIds, correlationId)).thenReturn(Collections.emptyList());

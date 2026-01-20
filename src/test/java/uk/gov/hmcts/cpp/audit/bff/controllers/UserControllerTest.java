@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import uk.gov.hmcts.cpp.audit.bff.model.User;
 import uk.gov.hmcts.cpp.audit.bff.service.UserService;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -35,7 +36,7 @@ class UserControllerTest {
 
     @Test
     void shouldReturnUsersWhenEmailsFound() {
-        String emails = "found@example.com,john@doe.com";
+        final var emails = Arrays.asList("found@example.com,john@doe.com".split(","));
         String correlationId = "corr-123";
         List<User> users = List.of(new User("id1", "First", "Last", "found@example.com"),
                                    new User("id2", "John", "Doe", "john@doe.com"));
@@ -52,7 +53,7 @@ class UserControllerTest {
 
     @Test
     void shouldThrowNotFoundExceptionWhenEmailsNotFound() {
-        String emails = "missing@example.com,john@doe.com";
+        final var emails = Arrays.asList("missing@example.com,john@doe.com".split(","));
         String correlationId = "corr-123";
 
         when(userService.getUsersByEmails(emails, correlationId)).thenReturn(Collections.emptyList());
@@ -67,7 +68,7 @@ class UserControllerTest {
 
     @Test
     void shouldReturnUsersWhenUserIdsFound() {
-        String userIds = "user-123,user-456";
+        final var userIds = Arrays.asList("user-123,user-456".split(","));
         String correlationId = "corr-123";
         List<User> users = List.of(new User("user-123", "First", "Last", "email@example.com"),
                                    new User("user-456", "John", "Doe", "john@doe.com"));
@@ -84,7 +85,7 @@ class UserControllerTest {
 
     @Test
     void shouldThrowNotFoundExceptionWhenUserIdsNotFound() {
-        String userIds = "missing-id";
+        final var userIds = List.of("missing-id");
         String correlationId = "corr-123";
 
         when(userService.getEmailByUserId(userIds, correlationId)).thenReturn(Collections.emptyList());

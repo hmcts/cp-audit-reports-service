@@ -7,8 +7,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,16 +23,9 @@ import java.util.List;
 
 import static uk.gov.hmcts.cpp.audit.bff.constants.HeaderConstants.HEADER_CORRELATION_ID;
 
+@Slf4j
 @RestController
-public class MaterialController {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(MaterialController.class);
-
-    private final ProgressionService progressionService;
-
-    public MaterialController(ProgressionService progressionService) {
-        this.progressionService = progressionService;
-    }
+public record MaterialController(ProgressionService progressionService) {
 
     @Operation(summary = "Get Material Cases by Material IDs", description = "Retrieves Material Cases associated with "
         + "the provided material IDs.")
@@ -48,19 +40,22 @@ public class MaterialController {
     @GetMapping("/material/id")
     public ResponseEntity<List<MaterialCase>> getMaterial(
         @Parameter(description = "Material IDs (comma separated)", required = true)
-        @RequestParam("materialIds") String materialIds,
+        @RequestParam("materialIds") List<String> materialIds,
         @Parameter(description = "Correlation ID for tracking the request", required = true)
-        @RequestHeader(HEADER_CORRELATION_ID) String correlationId) {
-        LOGGER.info("Fetching Material Cases for IDs: {} with correlationId: {}", materialIds, correlationId);
-        List<MaterialCase> materialCases = progressionService.getMaterialCase(materialIds, correlationId);
+        @RequestHeader(HEADER_CORRELATION_ID) String correlationId
+    ) {
+        log.info("Fetching Material Cases for IDs: {} with correlationId: {}", materialIds, correlationId);
 
-        if (materialCases == null || materialCases.isEmpty()) {
-            LOGGER.warn("No Material Cases found for IDs: {} with correlationId: {}", materialIds, correlationId);
+        final var materialCases = progressionService.getMaterialCase(materialIds, correlationId);
+
+        if (materialCases.isEmpty()) {
+            log.warn("No Material Cases found for IDs: {} with correlationId: {}", materialIds, correlationId);
             throw new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
                 "No Material Cases found for the provided Material IDs");
         }
-        LOGGER.debug("Successfully retrieved {} Material Cases for IDs: {}", materialCases.size(), materialIds);
+
+        log.debug("Successfully retrieved {} Material Cases for IDs: {}", materialCases.size(), materialIds);
         return ResponseEntity.ok(materialCases);
     }
 }

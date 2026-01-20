@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import uk.gov.hmcts.cpp.audit.bff.model.CaseIdMapper;
 import uk.gov.hmcts.cpp.audit.bff.service.CaseService;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -35,7 +36,7 @@ class CaseControllerTest {
 
     @Test
     void shouldReturnSystemIdMappersWhenUrnsFound() {
-        String caseUrns = "urn1,urn2";
+        final var caseUrns = Arrays.asList("urn1,urn2".split(","));
         String correlationId = "corr-123";
         List<CaseIdMapper> mappers = List.of(
             new CaseIdMapper("urn1", "id1", "CASE_ID"),
@@ -54,7 +55,7 @@ class CaseControllerTest {
 
     @Test
     void shouldThrowNotFoundExceptionWhenUrnsNotFound() {
-        String caseUrns = "missing1,missing2";
+        final var caseUrns = Arrays.asList("missing1,missing2".split(","));
         String correlationId = "corr-123";
 
         when(caseService.getCaseIdByUrn(caseUrns, correlationId)).thenReturn(Collections.emptyList());
@@ -69,7 +70,7 @@ class CaseControllerTest {
 
     @Test
     void shouldReturnSystemIdMappersWhenIdsFound() {
-        String caseIds = "id1,id2";
+        final var caseIds = Arrays.asList("id1,id2".split(","));
         String correlationId = "corr-123";
         List<CaseIdMapper> mappers = List.of(
             new CaseIdMapper("urn1", "id1", "CASE_ID"),
@@ -88,7 +89,7 @@ class CaseControllerTest {
 
     @Test
     void shouldThrowNotFoundExceptionWhenIdsNotFound() {
-        String caseIds = "missing1,missing2";
+        final var caseIds = Arrays.asList("missing1,missing2".split(","));
         String correlationId = "corr-123";
 
         when(caseService.getCaseUrnByCaseId(caseIds, correlationId)).thenReturn(Collections.emptyList());

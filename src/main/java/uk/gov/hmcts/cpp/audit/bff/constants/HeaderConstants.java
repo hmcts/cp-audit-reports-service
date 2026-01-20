@@ -1,10 +1,7 @@
 package uk.gov.hmcts.cpp.audit.bff.constants;
 
-public class HeaderConstants {
+public interface HeaderConstants {
 
-    private HeaderConstants() {
-    }
-
-    public static final String HEADER_USER = "CJSCPPUID";
-    public static final String HEADER_CORRELATION_ID = "CPPCLIENTCORRELATIONID";
+    String HEADER_USER = "CJSCPPUID";
+    String HEADER_CORRELATION_ID = "CPPCLIENTCORRELATIONID";
 }

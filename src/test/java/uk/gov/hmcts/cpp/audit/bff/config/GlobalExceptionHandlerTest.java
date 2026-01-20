@@ -127,7 +127,7 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> response = globalExceptionHandler.handleGenericException(ex, mockRequest);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertEquals("An unexpected error occurred. Please try again later.", response.getBody().message());
+        assertEquals("Internal Server Error", response.getBody().message());
         assertEquals("corr-999", response.getBody().correlationId());
         assertNotNull(response.getBody().timestamp());
     }
